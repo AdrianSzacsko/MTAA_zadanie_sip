@@ -20,6 +20,11 @@ import socket
 import sys
 import time
 import logging
+import json
+
+file = open("codes.json", "r")
+code_messages = json.load(file)
+file.close()
 
 PORT = 5070
 HOST = socket.gethostbyname(socket.gethostname() + ".local")
@@ -362,8 +367,17 @@ class UDPHandler(SocketServer.BaseRequestHandler):
                 socket, claddr = self.getSocketInfo(origin)
                 self.data = self.removeRouteHeader()
                 data = self.removeTopVia()
+                #text = b"\r\n".join(data)
+
+                tmp_data = str(data[0], "utf-8")
+                for code in code_messages:
+                    if tmp_data.find(code) != -1:  # if we find a match
+                        tmp_data = tmp_data.replace(code, code_messages[code])
+                        data[0] = bytes(tmp_data, "utf-8")
+                        # print(data[0])
+                        break
+
                 text = b"\r\n".join(data)
-                #TODO txt message
                 socket.sendto(text, claddr)
                 showtime()
                 logging.info("<<< %s" % data[0])
