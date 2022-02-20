@@ -12,7 +12,7 @@
 
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
+import copy
 import socketserver as SocketServer
 import re
 import socket
@@ -28,6 +28,11 @@ file.close()
 
 PORT = 5070
 HOST = socket.gethostbyname(socket.gethostname() + ".local")
+rx_ok = re.compile(b".*200")
+rx_trying = re.compile(b".*100")
+rx_ringing = re.compile(b".*180")
+
+
 rx_register = re.compile(b"^REGISTER")
 rx_invite = re.compile(b"^INVITE")
 rx_ack = re.compile(b"^ACK")
@@ -70,9 +75,139 @@ rx_contact_expires = re.compile(b"expires=([^;$]*)")
 rx_expires = re.compile(b"^Expires: (.*)$")
 
 # global dictionnary
-recordroute = ""
-topvia = ""
+#recordroute = ""
+#topvia = ""
 registrar = {}
+
+recordroute = "Record-Route: <sip:%s:%d;lr>" % (HOST, PORT)
+topvia = "Via: SIP/2.0/UDP %s:%d" % (HOST, PORT)
+
+
+class Call:
+    def __init__(self, caller, calling, start_time):
+        self.caller = caller
+        self.calling = []
+        self.calling.append(calling)
+        self.start_time = start_time
+        self.end_time = None
+        self.bye_count = 0
+
+
+class Logs:
+    def __init__(self):
+        self.log_array = []
+        self.file = None
+        self.calls = []
+
+    def write_to_file(self, call: Call):
+        self.file = open("logs.txt", "a")
+        self.file.writelines(["----Call----\n",
+                              "From: " + str(call.caller) + "\n",
+                              "To: " + str(call.calling) + "\n",
+                              "Start time: " + str(call.start_time) + "\n",
+                              "End time:" + str(call.end_time) + "\n",
+                              "\n"])
+        self.file.close()
+
+    def add_log(self, log):
+        log = copy.deepcopy(log)
+        for i in range(len(log)):
+            if isinstance(log[i], str):
+                log[i] = bytes(log[i], "utf-8")
+        self.log_array = log
+        self.find_logs()
+
+    def check_call(self, caller, calling, index):
+        call_class: Call
+        call_class = self.calls[index]
+        if call_class.caller == caller and calling in call_class.calling:
+            return True
+        elif call_class.caller == caller:
+            call_class.calling.append(calling)
+            self.calls[index] = call_class
+            return True
+        else:
+            return False
+
+    def check_finished_calls(self):
+        for i in range(len(self.calls)):
+            if self.calls[i].bye_count == len(self.calls[i].calling):
+                self.calls[i].end_time = str(time.strftime("%H:%M:%S ", time.localtime()))
+                self.write_to_file(self.calls[i])
+                self.calls.pop(i)
+                return
+        return
+
+    def find_logs(self):
+        caller = ""
+        calling = ""
+        if rx_ringing.search(self.log_array[0]):
+            for line in self.log_array:
+                if rx_from.search(line):
+                    caller = str(rx_uri.search(line).group(), "utf-8")
+
+                elif rx_to.search(line):
+                    calling = str(rx_uri.search(line).group(), "utf-8")
+
+            written = False
+            for i in range(len(self.calls)):
+                if written is False:
+                    written = self.check_call(caller, calling, i)
+                else:
+                    break
+            if written is False:
+                self.calls.append(Call(caller, calling, str(time.strftime("%H:%M:%S ", time.localtime()))))
+
+        elif rx_bye.search(self.log_array[0]):
+            for line in self.log_array:
+                if rx_from.search(line):
+                    caller = str(rx_uri.search(line).group(), "utf-8")
+
+                elif rx_to.search(line):
+                    calling = str(rx_uri.search(line).group(), "utf-8")
+            for i in range(len(self.calls)):
+                if self.calls[i].caller == caller or self.calls[i].caller == calling:
+                    self.calls[i].bye_count += 1
+                    break
+            self.check_finished_calls()
+
+
+    """   def find_register(self, start_index):
+        # 1 register and 1 OK
+        uri_id = ""
+        for i in range(start_index, len(self.log_array)):
+            log = self.log_array[i]
+            if rx_register.search(log[0]):
+                # find the unique address
+                uri_id = self.find_uri_id(log)
+    
+            for k in range(i, len(self.log_array)):
+                sec_log = self.log_array[k]
+                if rx_ok.search(sec_log[0]):
+                    if uri_id == self.find_uri_id(sec_log):
+                        # register found
+                        self.write_to_file("User registered: " + str(uri_id))
+                        self.delete_logs.append(i)
+                        self.delete_logs.append(k)
+                        return
+    
+    def find_uri_id(self, log):
+        for line in log:
+            if rx_uri.search(line):
+                #s = str(line, "utf-8")
+                #start = s.find("sip:") + len("sip:")
+                #end = s.find("@")
+                #uri_id = s[start:end]
+                uri_id = rx_uri.search(line).group()
+                return uri_id
+        return ""
+    
+    """
+
+
+
+
+log_class = Logs()
 
 
 def hexdump(chars, sep, width):
@@ -238,6 +373,8 @@ class UDPHandler(SocketServer.BaseRequestHandler):
         data = []
         size = len(self.data)
         for line in self.data:
+            if isinstance(line, str):
+                line = bytes(line, "utf-8")
             if rx_to.search(line) or rx_cto.search(line):
                 md = rx_uri.search(line)
                 if md:
@@ -387,6 +524,10 @@ class UDPHandler(SocketServer.BaseRequestHandler):
         # print "processRequest"
         if len(self.data) > 0:
             request_uri = self.data[0]
+
+            #log_to_file.get_log(self.data)
+            log_class.add_log(self.data)
+
             if rx_register.search(request_uri):
                 self.processRegister()
             elif rx_invite.search(request_uri):
@@ -441,7 +582,7 @@ class UDPHandler(SocketServer.BaseRequestHandler):
                 logging.warning("---")
 
 
-if __name__ == "__main__":
+"""if __name__ == "__main__":
     logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s', filename='proxy.log', level=logging.INFO,
                         datefmt='%H:%M:%S')
     logging.info(time.strftime("%a, %d %b %Y %H:%M:%S ", time.localtime()))
@@ -454,4 +595,4 @@ if __name__ == "__main__":
     recordroute = "Record-Route: <sip:%s:%d;lr>" % (ipaddress, PORT)
     topvia = "Via: SIP/2.0/UDP %s:%d" % (ipaddress, PORT)
     server = SocketServer.UDPServer((HOST, PORT), UDPHandler)
-    server.serve_forever()
+    server.serve_forever()"""
