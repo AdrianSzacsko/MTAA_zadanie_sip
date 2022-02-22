@@ -31,6 +31,8 @@ HOST = socket.gethostbyname(socket.gethostname() + ".local")
 rx_ok = re.compile(b".*200")
 rx_trying = re.compile(b".*100")
 rx_ringing = re.compile(b".*180")
+rx_busy = re.compile(b".*486")
+rx_decline = re.compile(b".*603")
 
 
 rx_register = re.compile(b"^REGISTER")
@@ -91,6 +93,7 @@ class Call:
         self.start_time = start_time
         self.end_time = None
         self.bye_count = 0
+        self.declined = False
 
 
 class Logs:
@@ -101,12 +104,20 @@ class Logs:
 
     def write_to_file(self, call: Call):
         self.file = open("logs.txt", "a")
-        self.file.writelines(["----Call----\n",
-                              "From: " + str(call.caller) + "\n",
-                              "To: " + str(call.calling) + "\n",
-                              "Start time: " + str(call.start_time) + "\n",
-                              "End time:" + str(call.end_time) + "\n",
-                              "\n"])
+        if not call.declined:
+            self.file.writelines(["----Call----\n",
+                                  "From: " + str(call.caller) + "\n",
+                                  "To: " + str(call.calling) + "\n",
+                                  "Start time: " + str(call.start_time) + "\n",
+                                  "End time:" + str(call.end_time) + "\n",
+                                  "\n"])
+        else:
+            self.file.writelines(["----Call declined----\n",
+                                  "From: " + str(call.caller) + "\n",
+                                  "To: " + str(call.calling) + "\n",
+                                  "Start time: " + str(call.start_time) + "\n",
+                                  "End time:" + str(call.end_time) + "\n",
+                                  "\n"])
         self.file.close()
 
     def add_log(self, log):
@@ -131,7 +142,7 @@ class Logs:
 
     def check_finished_calls(self):
         for i in range(len(self.calls)):
-            if self.calls[i].bye_count == len(self.calls[i].calling):
+            if self.calls[i].bye_count == len(self.calls[i].calling) or self.calls[i].declined:
                 self.calls[i].end_time = str(time.strftime("%H:%M:%S ", time.localtime()))
                 self.write_to_file(self.calls[i])
                 self.calls.pop(i)
@@ -169,6 +180,19 @@ class Logs:
                 if self.calls[i].caller == caller or self.calls[i].caller == calling:
                     self.calls[i].bye_count += 1
                     break
+            self.check_finished_calls()
+
+        elif rx_busy.search(self.log_array[0]) or rx_decline.search(self.log_array[0]):
+            for line in self.log_array:
+                if rx_from.search(line):
+                    caller = str(rx_uri.search(line).group(), "utf-8")
+
+                elif rx_to.search(line):
+                    calling = str(rx_uri.search(line).group(), "utf-8")
+            for i in range(len(self.calls)):
+                if self.calls[i].caller == caller or self.calls[i].caller == calling:
+                    self.calls[i].declined = True
+
             self.check_finished_calls()
 
 

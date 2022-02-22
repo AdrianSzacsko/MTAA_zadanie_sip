@@ -8,7 +8,8 @@ if __name__ == "__main__":
     logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s', filename='proxy.log', level=logging.INFO,
                         datefmt='%H:%M:%S')
     logging.info(time.strftime("%a, %d %b %Y %H:%M:%S ", time.localtime()))
-    ipaddress = socket.gethostbyname(socket.gethostname() + ".local")
+    # ipaddress = socket.gethostbyname(socket.gethostname() + ".local")
+    ipaddress = "0.0.0.0"
     port = 5070
     logging.info(ipaddress)
     print("IP address:", ipaddress)
