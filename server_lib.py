@@ -16,73 +16,73 @@ import copy
 import socketserver as SocketServer
 import re
 import socket
-# import threading
+import threading
 import sys
 import time
 import logging
 import json
 
-file = open("codes.json", "r")
-code_messages = json.load(file)
-file.close()
-
-PORT = 5070
-HOST = socket.gethostbyname(socket.gethostname() + ".local")
-rx_ok = re.compile(b".*200")
-rx_trying = re.compile(b".*100")
-rx_ringing = re.compile(b".*180")
-rx_busy = re.compile(b".*486")
-rx_decline = re.compile(b".*603")
+try:
+    file = open("codes.json", "r")
+    code_messages = json.load(file)
+    file.close()
+except FileNotFoundError:
+    code_messages = {}
 
 
-rx_register = re.compile(b"^REGISTER")
-rx_invite = re.compile(b"^INVITE")
-rx_ack = re.compile(b"^ACK")
-rx_prack = re.compile(b"^PRACK")
-rx_cancel = re.compile(b"^CANCEL")
-rx_bye = re.compile(b"^BYE")
-rx_options = re.compile(b"^OPTIONS")
-rx_subscribe = re.compile(b"^SUBSCRIBE")
-rx_publish = re.compile(b"^PUBLISH")
-rx_notify = re.compile(b"^NOTIFY")
-rx_info = re.compile(b"^INFO")
-rx_message = re.compile(b"^MESSAGE")
-rx_refer = re.compile(b"^REFER")
-rx_update = re.compile(b"^UPDATE")
-rx_from = re.compile(b"^From:")
-rx_cfrom = re.compile(b"^f:")
-rx_to = re.compile(b"^To:")
-rx_cto = re.compile(b"^t:")
-rx_tag = re.compile(b";tag")
-rx_contact = re.compile(b"^Contact:")
-rx_ccontact = re.compile(b"^m:")
-rx_uri = re.compile(b"sip:([^@]*)@([^;>$]*)")
-rx_addr = re.compile(b"sip:([^ ;>$]*)")
+
+rx_register = re.compile("^REGISTER")
+
+rx_ok = re.compile(".*200")
+rx_trying = re.compile(".*100")
+rx_ringing = re.compile(".*180")
+rx_busy = re.compile(".*486")
+rx_decline = re.compile(".*603")
+
+rx_invite = re.compile("^INVITE")
+rx_ack = re.compile("^ACK")
+rx_prack = re.compile("^PRACK")
+rx_cancel = re.compile("^CANCEL")
+rx_bye = re.compile("^BYE")
+rx_options = re.compile("^OPTIONS")
+rx_subscribe = re.compile("^SUBSCRIBE")
+rx_publish = re.compile("^PUBLISH")
+rx_notify = re.compile("^NOTIFY")
+rx_info = re.compile("^INFO")
+rx_message = re.compile("^MESSAGE")
+rx_refer = re.compile("^REFER")
+rx_update = re.compile("^UPDATE")
+rx_from = re.compile("^From:")
+rx_cfrom = re.compile("^f:")
+rx_to = re.compile("^To:")
+rx_cto = re.compile("^t:")
+rx_tag = re.compile(";tag")
+rx_contact = re.compile("^Contact:")
+rx_ccontact = re.compile("^m:")
+rx_uri = re.compile("sip:([^@]*)@([^;>$]*)")
+rx_addr = re.compile("sip:([^ ;>$]*)")
 # rx_addrport = re.compile("([^:]*):(.*)")
-rx_code = re.compile(b"^SIP/2.0 ([^ ]*)")
-rx_invalid = re.compile(b"256") # re.compile(b"^192\.168")
-rx_invalid2 = re.compile(b"256") # re.compile(b"^10\.")
+rx_code = re.compile("^SIP/2.0 ([^ ]*)")
+#rx_invalid = re.compile("^192\.168")
+#rx_invalid2 = re.compile("^10\.")
 # rx_cseq = re.compile("^CSeq:")
 # rx_callid = re.compile("Call-ID: (.*)$")
 # rx_rr = re.compile("^Record-Route:")
-rx_request_uri = re.compile(b"^([^ ]*) sip:([^ ]*) SIP/2.0")
-rx_route = re.compile(b"^Route:")
-rx_contentlength = re.compile(b"^Content-Length:")
-rx_ccontentlength = re.compile(b"^l:")
-rx_via = re.compile(b"^Via:")
-rx_cvia = re.compile(b"^v:")
-rx_branch = re.compile(b";branch=([^;]*)")
-rx_rport = re.compile(b";rport$|;rport;")
-rx_contact_expires = re.compile(b"expires=([^;$]*)")
-rx_expires = re.compile(b"^Expires: (.*)$")
+rx_request_uri = re.compile("^([^ ]*) sip:([^ ]*) SIP/2.0")
+rx_route = re.compile("^Route:")
+rx_contentlength = re.compile("^Content-Length:")
+rx_ccontentlength = re.compile("^l:")
+rx_via = re.compile("^Via:")
+rx_cvia = re.compile("^v:")
+rx_branch = re.compile(";branch=([^;]*)")
+rx_rport = re.compile(";rport$|;rport;")
+rx_contact_expires = re.compile("expires=([^;$]*)")
+rx_expires = re.compile("^Expires: (.*)$")
 
 # global dictionnary
-#recordroute = ""
-#topvia = ""
+recordroute = ""
+topvia = ""
 registrar = {}
-
-recordroute = "Record-Route: <sip:%s:%d;lr>" % (HOST, PORT)
-topvia = "Via: SIP/2.0/UDP %s:%d" % (HOST, PORT)
 
 
 class Call:
@@ -123,8 +123,8 @@ class Logs:
     def add_log(self, log):
         log = copy.deepcopy(log)
         for i in range(len(log)):
-            if isinstance(log[i], str):
-                log[i] = bytes(log[i], "utf-8")
+            if isinstance(log[i], bytes):
+                log[i] = log[i].decode()
         self.log_array = log
         self.find_logs()
 
@@ -155,10 +155,10 @@ class Logs:
         if rx_ringing.search(self.log_array[0]):
             for line in self.log_array:
                 if rx_from.search(line):
-                    caller = str(rx_uri.search(line).group(), "utf-8")
+                    caller = rx_uri.search(line).group()
 
                 elif rx_to.search(line):
-                    calling = str(rx_uri.search(line).group(), "utf-8")
+                    calling = rx_uri.search(line).group()
 
             written = False
             for i in range(len(self.calls)):
@@ -172,10 +172,10 @@ class Logs:
         elif rx_bye.search(self.log_array[0]):
             for line in self.log_array:
                 if rx_from.search(line):
-                    caller = str(rx_uri.search(line).group(), "utf-8")
+                    caller = rx_uri.search(line).group()
 
                 elif rx_to.search(line):
-                    calling = str(rx_uri.search(line).group(), "utf-8")
+                    calling = rx_uri.search(line).group()
             for i in range(len(self.calls)):
                 if self.calls[i].caller == caller or self.calls[i].caller == calling:
                     self.calls[i].bye_count += 1
@@ -185,10 +185,10 @@ class Logs:
         elif rx_busy.search(self.log_array[0]) or rx_decline.search(self.log_array[0]):
             for line in self.log_array:
                 if rx_from.search(line):
-                    caller = str(rx_uri.search(line).group(), "utf-8")
+                    caller = rx_uri.search(line).group()
 
                 elif rx_to.search(line):
-                    calling = str(rx_uri.search(line).group(), "utf-8")
+                    calling = rx_uri.search(line).group()
             for i in range(len(self.calls)):
                 if self.calls[i].caller == caller or self.calls[i].caller == calling:
                     self.calls[i].declined = True
@@ -196,50 +196,12 @@ class Logs:
             self.check_finished_calls()
 
 
-    """   def find_register(self, start_index):
-        # 1 register and 1 OK
-        uri_id = ""
-        for i in range(start_index, len(self.log_array)):
-            log = self.log_array[i]
-            if rx_register.search(log[0]):
-                # find the unique address
-                uri_id = self.find_uri_id(log)
-    
-            for k in range(i, len(self.log_array)):
-                sec_log = self.log_array[k]
-                if rx_ok.search(sec_log[0]):
-                    if uri_id == self.find_uri_id(sec_log):
-                        # register found
-                        self.write_to_file("User registered: " + str(uri_id))
-                        self.delete_logs.append(i)
-                        self.delete_logs.append(k)
-                        return
-    
-    def find_uri_id(self, log):
-        for line in log:
-            if rx_uri.search(line):
-                #s = str(line, "utf-8")
-                #start = s.find("sip:") + len("sip:")
-                #end = s.find("@")
-                #uri_id = s[start:end]
-                uri_id = rx_uri.search(line).group()
-                return uri_id
-        return ""
-    
-    """
-
-
-
-
-log_class = Logs()
-
-
 def hexdump(chars, sep, width):
     while chars:
         line = chars[:width]
         chars = chars[width:]
-        line = line.ljust(width, b'\000')
-        #logging.debug("%s%s%s" % (sep.join("%02x" % ord(c) for c in line), sep, quotechars(line)))
+        line = line.ljust(width, '\000')
+        logging.debug("%s%s%s" % (sep.join("%02x" % ord(c) for c in line), sep, quotechars(line)))
 
 
 def quotechars(chars):
@@ -285,18 +247,16 @@ class UDPHandler(SocketServer.BaseRequestHandler):
                 md = rx_branch.search(line)
                 if md:
                     branch = md.group(1)
-                    via = "%s;branch=%sm" % (topvia, branch.decode('utf-8'))
-                    data.append(bytes(via[2:], encoding="utf-8"))
+                    via = "%s;branch=%sm" % (topvia, branch)
+                    data.append(via)
                 # rport processing
                 if rx_rport.search(line):
                     text = "received=%s;rport=%d" % self.client_address
-                    via = line.replace(b"rport", bytes(text, encoding="utf-8"))
-                    via = via.decode('utf-8')
+                    via = line.replace("rport", text)
                 else:
                     text = "received=%s" % self.client_address[0]
-                    via = "%s;%s" % (line.decode('utf-8'), text)
-                data.append(bytes(via, encoding="utf-8"))
-
+                    via = "%s;%s" % (line, text)
+                data.append(via)
             else:
                 data.append(line)
         return data
@@ -305,7 +265,7 @@ class UDPHandler(SocketServer.BaseRequestHandler):
         data = []
         for line in self.data:
             if rx_via.search(line) or rx_cvia.search(line):
-                if not line.startswith(bytes(topvia, "utf-8")):
+                if not line.startswith(topvia):
                     data.append(line)
             else:
                 data.append(line)
@@ -347,39 +307,32 @@ class UDPHandler(SocketServer.BaseRequestHandler):
 
     def sendResponse(self, code):
         request_uri = "SIP/2.0 " + code
-        self.data[0] = bytes(request_uri, "utf-8")
+        self.data[0] = request_uri
         index = 0
         data = []
         for line in self.data:
-            # data.append(line)
-            try:
-                line = bytes(line, "utf-8")
-            except TypeError:
-                if len(line) == 0:
-                    line = b""
-                pass
             data.append(line)
             if rx_to.search(line) or rx_cto.search(line):
                 if not rx_tag.search(line):
-                    data[index] = b"%s%s" % (line, b";tag=123456")
+                    data[index] = "%s%s" % (line, ";tag=123456")
             if rx_via.search(line) or rx_cvia.search(line):
                 # rport processing
                 if rx_rport.search(line):
                     text = "received=%s;rport=%d" % self.client_address
-                    data[index] = line.replace(b"rport", bytes(text, "utf-8"))
+                    data[index] = line.replace("rport", text)
                 else:
                     text = "received=%s" % self.client_address[0]
                     data[index] = "%s;%s" % (line, text)
             if rx_contentlength.search(line):
-                data[index] = b"Content-Length: 0"
+                data[index] = "Content-Length: 0"
             if rx_ccontentlength.search(line):
-                data[index] = b"l: 0"
+                data[index] = "l: 0"
             index += 1
-            if len(line) == 0:
+            if line == "":
                 break
-        data.append(b"")
-        text = b"\r\n".join(data)
-        self.socket.sendto(text, self.client_address)
+        data.append("")
+        text = "\r\n".join(data)
+        self.socket.sendto(text.encode(), self.client_address)
         showtime()
         logging.info("<<< %s" % data[0])
         logging.debug("---\n<< server send [%d]:\n%s\n---" % (len(text), text))
@@ -397,8 +350,6 @@ class UDPHandler(SocketServer.BaseRequestHandler):
         data = []
         size = len(self.data)
         for line in self.data:
-            if isinstance(line, str):
-                line = bytes(line, "utf-8")
             if rx_to.search(line) or rx_cto.search(line):
                 md = rx_uri.search(line)
                 if md:
@@ -418,11 +369,11 @@ class UDPHandler(SocketServer.BaseRequestHandler):
             if md:
                 header_expires = md.group(1)
 
-        if rx_invalid.search(contact) or rx_invalid2.search(contact):
-            if fromm in registrar:
+        """if rx_invalid.search(contact) or rx_invalid2.search(contact):
+            if registrar.has_key(fromm):
                 del registrar[fromm]
             self.sendResponse("488 Not Acceptable Here")
-            return
+            return"""
         if len(contact_expires) > 0:
             expires = int(contact_expires)
         elif len(header_expires) > 0:
@@ -449,7 +400,7 @@ class UDPHandler(SocketServer.BaseRequestHandler):
         logging.debug(" INVITE received ")
         logging.debug("-----------------")
         origin = self.getOrigin()
-        if len(origin) == 0 or not origin in registrar:
+        if len(origin) == 0 or origin not in registrar:
             self.sendResponse("400 Bad Request")
             return
         destination = self.getDestination()
@@ -461,9 +412,9 @@ class UDPHandler(SocketServer.BaseRequestHandler):
                 self.data = self.addTopVia()
                 data = self.removeRouteHeader()
                 # insert Record-Route
-                data.insert(1, bytes(recordroute, "utf-8"))
-                text = b"\r\n".join(data)
-                socket.sendto(text, claddr)
+                data.insert(1, recordroute)
+                text = "\r\n".join(data)
+                socket.sendto(text.encode(), claddr)
                 showtime()
                 logging.info("<<< %s" % data[0])
                 logging.debug("---\n<< server send [%d]:\n%s\n---" % (len(text), text))
@@ -485,9 +436,9 @@ class UDPHandler(SocketServer.BaseRequestHandler):
                 self.data = self.addTopVia()
                 data = self.removeRouteHeader()
                 # insert Record-Route
-                data.insert(1, bytes(recordroute, "utf-8"))
-                text = b"\r\n".join(data)
-                socket.sendto(text, claddr)
+                data.insert(1, recordroute)
+                text = "\r\n".join(data)
+                socket.sendto(text.encode(), claddr)
                 showtime()
                 logging.info("<<< %s" % data[0])
                 logging.debug("---\n<< server send [%d]:\n%s\n---" % (len(text), text))
@@ -497,7 +448,7 @@ class UDPHandler(SocketServer.BaseRequestHandler):
         logging.debug(" NonInvite received   ")
         logging.debug("----------------------")
         origin = self.getOrigin()
-        if len(origin) == 0 or not origin in registrar:
+        if len(origin) == 0 or origin not in registrar:
             self.sendResponse("400 Bad Request")
             return
         destination = self.getDestination()
@@ -509,9 +460,9 @@ class UDPHandler(SocketServer.BaseRequestHandler):
                 self.data = self.addTopVia()
                 data = self.removeRouteHeader()
                 # insert Record-Route
-                data.insert(1, bytes(recordroute, "utf-8"))
-                text = b"\r\n".join(data)
-                socket.sendto(text, claddr)
+                data.insert(1, recordroute)
+                text = "\r\n".join(data)
+                socket.sendto(text.encode(), claddr)
                 showtime()
                 logging.info("<<< %s" % data[0])
                 logging.debug("---\n<< server send [%d]:\n%s\n---" % (len(text), text))
@@ -528,18 +479,17 @@ class UDPHandler(SocketServer.BaseRequestHandler):
                 socket, claddr = self.getSocketInfo(origin)
                 self.data = self.removeRouteHeader()
                 data = self.removeTopVia()
-                #text = b"\r\n".join(data)
 
-                tmp_data = str(data[0], "utf-8")
+                tmp_data = data[0]
                 for code in code_messages:
                     if tmp_data.find(code) != -1:  # if we find a match
                         tmp_data = tmp_data.replace(code, code_messages[code])
-                        data[0] = bytes(tmp_data, "utf-8")
+                        data[0] = tmp_data
                         # print(data[0])
                         break
 
-                text = b"\r\n".join(data)
-                socket.sendto(text, claddr)
+                text = "\r\n".join(data)
+                socket.sendto(text.encode(), claddr)
                 showtime()
                 logging.info("<<< %s" % data[0])
                 logging.debug("---\n<< server send [%d]:\n%s\n---" % (len(text), text))
@@ -549,7 +499,6 @@ class UDPHandler(SocketServer.BaseRequestHandler):
         if len(self.data) > 0:
             request_uri = self.data[0]
 
-            #log_to_file.get_log(self.data)
             log_class.add_log(self.data)
 
             if rx_register.search(request_uri):
@@ -588,8 +537,13 @@ class UDPHandler(SocketServer.BaseRequestHandler):
 
     def handle(self):
         # socket.setdefaulttimeout(120)
-        data = self.request[0]
-        self.data = data.split(b"\r\n")
+        #for i in range(len(self.request)):
+        if isinstance(self.request[0], bytes):
+            #self.request[0] = self.request[0].decode()
+            data = self.request[0].decode()
+        else:
+            data = self.request[0]
+        self.data = data.split("\r\n")
         self.socket = self.request[1]
         request_uri = self.data[0]
         if rx_request_uri.search(request_uri) or rx_code.search(request_uri):
@@ -606,17 +560,64 @@ class UDPHandler(SocketServer.BaseRequestHandler):
                 logging.warning("---")
 
 
+# self created lines
+
+def wait_for_exit(server_class: SocketServer.UDPServer):
+    print("INFO: Type exit to close and kill the program")
+    while True:
+        text = input()
+        if text == "exit".lower():
+            print("Exiting...")
+            server_class.shutdown()
+            return
+        else:
+            print("Input not defined!")
+
+
+def get_ip():
+    option = input("Do you want to set up IP address automatically? [y/n] ")
+    if option.lower() == "y":
+        ipaddress = socket.gethostbyname(socket.gethostname() + ".local")
+    else:
+        while True:
+            ipaddress = input("Add IP address: ")
+            try:
+                socket.inet_aton(ipaddress)
+                break
+            except socket.error:
+                print("Warning: Illegal IP address!")
+    return ipaddress
+
+
+log_class = Logs()
+print("Server is starting...")
+HOST = get_ip()
+PORT = 5070
+print("IP address:", HOST)
+print("Port:", PORT)
+server = SocketServer.UDPServer((HOST, PORT), UDPHandler)
+
+exit_checker_thread = threading.Thread(target=wait_for_exit, args=(server,))
+exit_checker_thread.start()
+
+
 """if __name__ == "__main__":
     logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s', filename='proxy.log', level=logging.INFO,
                         datefmt='%H:%M:%S')
     logging.info(time.strftime("%a, %d %b %Y %H:%M:%S ", time.localtime()))
     hostname = socket.gethostname()
     logging.info(hostname)
-    ipaddress = socket.gethostbyname(hostname)
+    #ipaddress = socket.gethostbyname(hostname)
+    ipaddress = "192.168.0.124"
     if ipaddress == "127.0.0.1":
-        ipaddress = sys.argv[1]
+        try:
+            ipaddress = sys.argv[1]
+        except IndexError:
+            print("IP address cannot be obtained!")
     logging.info(ipaddress)
     recordroute = "Record-Route: <sip:%s:%d;lr>" % (ipaddress, PORT)
     topvia = "Via: SIP/2.0/UDP %s:%d" % (ipaddress, PORT)
-    server = SocketServer.UDPServer((HOST, PORT), UDPHandler)
+    #server = SocketServer.UDPServer((HOST, PORT), UDPHandler)
+    print("IP address:", ipaddress)
+    print("Port:", PORT)
     server.serve_forever()"""
