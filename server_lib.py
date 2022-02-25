@@ -30,7 +30,6 @@ except FileNotFoundError:
     code_messages = {}
 
 
-
 rx_register = re.compile("^REGISTER")
 
 rx_ok = re.compile(".*200")
@@ -83,6 +82,10 @@ rx_expires = re.compile("^Expires: (.*)$")
 recordroute = ""
 topvia = ""
 registrar = {}
+log_class = None
+server = None
+HOST = None
+PORT = None
 
 
 class Call:
@@ -588,17 +591,29 @@ def get_ip():
                 print("Warning: Illegal IP address!")
     return ipaddress
 
+# ----------------------------------------------------------------------------------------------------------------
 
-log_class = Logs()
-print("Server is starting...")
-HOST = get_ip()
-PORT = 5070
-print("IP address:", HOST)
-print("Port:", PORT)
-server = SocketServer.UDPServer((HOST, PORT), UDPHandler)
 
-exit_checker_thread = threading.Thread(target=wait_for_exit, args=(server,))
-exit_checker_thread.start()
+def start_server():
+    global log_class, server, HOST, PORT
+
+    log_class = Logs()
+    print("Server is starting...")
+    HOST = get_ip()
+    PORT = 5070
+    print("IP address:", HOST)
+    print("Port:", PORT)
+
+    global recordroute, topvia
+
+    recordroute = "Record-Route: <sip:%s:%d;lr>" % (HOST, PORT)
+    topvia = "Via: SIP/2.0/UDP %s:%d" % (HOST, PORT)
+
+    server = SocketServer.UDPServer((HOST, PORT), UDPHandler)
+
+    exit_checker_thread = threading.Thread(target=wait_for_exit, args=(server,))
+    exit_checker_thread.start()
+    server.serve_forever()
 
 
 """if __name__ == "__main__":
