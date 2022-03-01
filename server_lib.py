@@ -12,12 +12,14 @@
 
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+#    Some parts of the code were modified and supplemented by Adrian Szacsko
 import copy
 import socketserver as SocketServer
 import re
 import socket
 import threading
-import sys
 import time
 import logging
 import json
@@ -101,9 +103,9 @@ class Call:
 
 class Logs:
     def __init__(self):
-        self.log_array = []
+        self.log_array = []  # one log imported
         self.file = None
-        self.calls = []
+        self.calls = []  # array of Call classes
 
     def write_to_file(self, call: Call):
         self.file = open("logs.txt", "a")
@@ -483,6 +485,7 @@ class UDPHandler(SocketServer.BaseRequestHandler):
                 self.data = self.removeRouteHeader()
                 data = self.removeTopVia()
 
+                # replace sip codes with custom ones
                 tmp_data = data[0]
                 for code in code_messages:
                     if tmp_data.find(code) != -1:  # if we find a match
@@ -502,6 +505,7 @@ class UDPHandler(SocketServer.BaseRequestHandler):
         if len(self.data) > 0:
             request_uri = self.data[0]
 
+            # create logs for calls
             log_class.add_log(self.data)
 
             if rx_register.search(request_uri):
@@ -563,8 +567,10 @@ class UDPHandler(SocketServer.BaseRequestHandler):
                 logging.warning("---")
 
 
-# self created lines
+# self created code
 
+
+# function to close the socketserver
 def wait_for_exit(server_class: SocketServer.UDPServer):
     print("INFO: Type exit to close and kill the program")
     while True:
@@ -577,6 +583,8 @@ def wait_for_exit(server_class: SocketServer.UDPServer):
             print("Input not defined!")
 
 
+
+# get IP address of the system
 def get_ip():
     option = input("Do you want to set up IP address automatically? [y/n] ")
     if option.lower() == "y":
@@ -594,6 +602,7 @@ def get_ip():
 # ----------------------------------------------------------------------------------------------------------------
 
 
+# function that is called from the main, to start the server
 def start_server():
     global log_class, server, HOST, PORT
 
@@ -614,25 +623,3 @@ def start_server():
     exit_checker_thread = threading.Thread(target=wait_for_exit, args=(server,))
     exit_checker_thread.start()
     server.serve_forever()
-
-
-"""if __name__ == "__main__":
-    logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s', filename='proxy.log', level=logging.INFO,
-                        datefmt='%H:%M:%S')
-    logging.info(time.strftime("%a, %d %b %Y %H:%M:%S ", time.localtime()))
-    hostname = socket.gethostname()
-    logging.info(hostname)
-    #ipaddress = socket.gethostbyname(hostname)
-    ipaddress = "192.168.0.124"
-    if ipaddress == "127.0.0.1":
-        try:
-            ipaddress = sys.argv[1]
-        except IndexError:
-            print("IP address cannot be obtained!")
-    logging.info(ipaddress)
-    recordroute = "Record-Route: <sip:%s:%d;lr>" % (ipaddress, PORT)
-    topvia = "Via: SIP/2.0/UDP %s:%d" % (ipaddress, PORT)
-    #server = SocketServer.UDPServer((HOST, PORT), UDPHandler)
-    print("IP address:", ipaddress)
-    print("Port:", PORT)
-    server.serve_forever()"""
