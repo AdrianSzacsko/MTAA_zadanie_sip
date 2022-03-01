@@ -5,5 +5,5 @@
   "400 Bad Request": "400 Zla poziadavka",
   "408 Request Timeout": "408 Casovy limit vyprsal",
   "480 Temporarily Unavailable": "480 Docasne nedostupne",
-  "486 Busy Here": "486 Zaneprazdneny"
+  "486 Busy here": "486 Zaneprazdneny"
 }
