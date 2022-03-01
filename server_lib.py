@@ -13,6 +13,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+#    link to original code: https://github.com/tirfil/PySipFullProxy/blob/master/sipfullproxy.py
 
 #    Some parts of the code were modified and supplemented by Adrian Szacsko
 import copy
