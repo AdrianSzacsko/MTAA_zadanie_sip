@@ -584,10 +584,10 @@ def wait_for_exit(server_class: SocketServer.UDPServer):
             print("Input not defined!")
 
 
-
 # get IP address of the system
 def get_ip():
-    option = input("Do you want to set up IP address automatically? [y/n] ")
+    option = input("Do you want to set up IP address and PORT automatically? [y/n] ")
+    port = 5070
     if option.lower() == "y":
         ipaddress = socket.gethostbyname(socket.gethostname() + ".local")
     else:
@@ -598,7 +598,15 @@ def get_ip():
                 break
             except socket.error:
                 print("Warning: Illegal IP address!")
-    return ipaddress
+
+        while True:
+            port = input("Add port number: ")
+            try:
+                port = int(port)
+                break
+            except Exception:
+                print("Warning: Illegal port number!")
+    return ipaddress, port
 
 # ----------------------------------------------------------------------------------------------------------------
 
@@ -609,8 +617,8 @@ def start_server():
 
     log_class = Logs()
     print("Server is starting...")
-    HOST = get_ip()
-    PORT = 5070
+    HOST, PORT = get_ip()
+    # PORT = 5070
     print("IP address:", HOST)
     print("Port:", PORT)
 
